@@ -6,7 +6,7 @@ OpenTelemetry instrumentation for [elastic/go-freelru](https://github.com/elasti
 
 - **Universal Instrumentation**: Works with both `freelru.SyncedLRU` and `freelru.ShardedLRU`
 - **OpenTelemetry Integration**: Automatic metrics export for cache performance monitoring
-- **Low Overhead**: Uses OpenTelemetry Observable Gauge callbacks for efficient metrics collection
+- **Low Overhead**: Uses OpenTelemetry Observable Counter callbacks for efficient metrics collection
 - **Non-intrusive**: Metrics collection doesn't impact cache performance
 
 ## Installation
