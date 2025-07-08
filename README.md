@@ -1,10 +1,12 @@
 # freelru-otel
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/sweet-tv/freelru-otel.svg)](https://pkg.go.dev/github.com/sweet-tv/freelru-otel)
+
 OpenTelemetry instrumentation for [elastic/go-freelru](https://github.com/elastic/go-freelru) LRU cache implementations.
 
 ## Features
 
-- **Universal Instrumentation**: Works with both `freelru.SyncedLRU` and `freelru.ShardedLRU`
+- **Universal Instrumentation**: Works with `freelru.LRU`, `freelru.SyncedLRU` and `freelru.ShardedLRU`
 - **OpenTelemetry Integration**: Automatic metrics export for cache performance monitoring
 - **Low Overhead**: Uses OpenTelemetry Observable Counter callbacks for efficient metrics collection
 - **Non-intrusive**: Metrics collection doesn't impact cache performance
@@ -17,7 +19,7 @@ go get github.com/sweet-tv/freelru-otel
 
 ## Usage
 
-### Basic Usage
+### Basic Usage with freelru.LRU
 
 ```go
 package main
@@ -33,8 +35,8 @@ func hashString(s string) uint32 {
 }
 
 func main() {
-    // Create a SyncedLRU cache
-    cache, err := freelru.NewSynced[string, string](100, hashString)
+    // Create a single-threaded LRU cache
+    cache, err := freelru.New[string, string](100, hashString)
     if err != nil {
         panic(err)
     }
@@ -51,6 +53,26 @@ func main() {
         // Metrics are automatically collected
     }
 }
+```
+
+### Usage with SyncedLRU
+
+```go
+// Create a SyncedLRU cache for thread safety
+cache, err := freelru.NewSynced[string, string](100, hashString)
+if err != nil {
+    panic(err)
+}
+
+// Instrument the cache
+err = freelruotel.InstrumentCache(cache, "synced_cache")
+if err != nil {
+    panic(err)
+}
+
+// Use cache normally - metrics are collected automatically
+cache.Add("key1", "value1")
+cache.Get("key1")
 ```
 
 ### Usage with ShardedLRU

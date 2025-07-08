@@ -21,6 +21,10 @@ func TestInstrumentCache(t *testing.T) {
 		cache MetricsProvider
 	}{
 		{
+			name:  "LRU",
+			cache: mustCreateLRUCache(),
+		},
+		{
 			name:  "ShardedLRU",
 			cache: mustCreateShardedCache(),
 		},
@@ -43,7 +47,12 @@ func TestInstrumentCache(t *testing.T) {
 			}
 
 			// Use the cache to generate metrics
-			if syncedCache, ok := tc.cache.(*freelru.SyncedLRU[string, string]); ok {
+			if lruCache, ok := tc.cache.(*freelru.LRU[string, string]); ok {
+				lruCache.Add("key1", "value1")
+				lruCache.Add("key2", "value2")
+				lruCache.Get("key1") // hit
+				lruCache.Get("miss") // miss
+			} else if syncedCache, ok := tc.cache.(*freelru.SyncedLRU[string, string]); ok {
 				syncedCache.Add("key1", "value1")
 				syncedCache.Add("key2", "value2")
 				syncedCache.Get("key1") // hit
@@ -96,6 +105,14 @@ func TestInstrumentCache(t *testing.T) {
 
 func mustCreateShardedCache() *freelru.ShardedLRU[string, string] {
 	cache, err := freelru.NewSharded[string, string](10, hashStringXXHASH)
+	if err != nil {
+		panic(err)
+	}
+	return cache
+}
+
+func mustCreateLRUCache() *freelru.LRU[string, string] {
+	cache, err := freelru.New[string, string](10, hashStringXXHASH)
 	if err != nil {
 		panic(err)
 	}
