@@ -32,7 +32,7 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	}
 }
 
-// InstrumentCache registers OpenTelemetry Observable Gauge metrics for a cache
+// InstrumentCache registers OpenTelemetry Observable Counter metrics for a cache
 // that implements the MetricsProvider interface.
 func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 	cfg := &config{
@@ -112,7 +112,6 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 	return nil
 }
 
-// registerMetric is a helper function to register an individual metric and handle errors.
 func registerMetric(meter metric.Meter, name, description string, callback metric.Int64Callback) error {
 	_, err := meter.Int64ObservableCounter(name,
 		metric.WithDescription(description),
