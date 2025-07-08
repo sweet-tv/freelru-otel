@@ -43,7 +43,7 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 		opt(cfg)
 	}
 
-	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel", 
+	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel",
 		metric.WithInstrumentationVersion(version))
 	if meter == nil {
 		return nil

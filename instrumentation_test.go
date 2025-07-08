@@ -83,7 +83,7 @@ func TestInstrumentCache(t *testing.T) {
 			// Verify cache.hit and cache.miss metrics are present
 			metrics := rm.ScopeMetrics[0].Metrics
 			var hitMetric, missMetric *metricdata.Metrics
-			
+
 			for i := range metrics {
 				switch metrics[i].Name {
 				case "cache.hit":
