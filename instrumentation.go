@@ -9,8 +9,11 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// version is the current version of the instrumentation library.
+var version = "v0.1.0-dev"
+
 // MetricsProvider is an interface for any cache implementation that can provide metrics.
-// Both freelru.SyncedLRU and freelru.ShardedLRU implement this interface.
+// freelru.LRU, freelru.SyncedLRU and freelru.ShardedLRU implement this interface.
 type MetricsProvider interface {
 	Metrics() freelru.Metrics
 }
@@ -41,7 +44,8 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 		opt(cfg)
 	}
 
-	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel")
+	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel", 
+		metric.WithInstrumentationVersion(version))
 	if meter == nil {
 		return nil
 	}
