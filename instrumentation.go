@@ -32,8 +32,7 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	}
 }
 
-// InstrumentCache registers OpenTelemetry Observable Counter metrics for a cache
-// that implements the MetricsProvider interface.
+// InstrumentCache registers OpenTelemetry Observable Counter metrics of any instance of freelru cache.
 func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 	cfg := &config{
 		meterProvider: otel.GetMeterProvider(),
