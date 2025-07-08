@@ -12,7 +12,7 @@ import (
 // version is the current version of the instrumentation library.
 var version = "v0.1.0-dev"
 
-// MetricsProvider is an interface for any cache implementation that can provide metrics.
+// MetricsProvider is an interface for freelru cache implementations that can provide metrics.
 // freelru.LRU, freelru.SyncedLRU and freelru.ShardedLRU implement this interface.
 type MetricsProvider interface {
 	Metrics() freelru.Metrics
