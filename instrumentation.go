@@ -12,7 +12,7 @@ import (
 // version is the current version of the instrumentation library.
 var version = "v0.1.0-dev"
 
-// MetricsProvider is an interface for any cache implementation that can provide metrics.
+// MetricsProvider is an interface for freelru cache implementations that can provide metrics.
 // freelru.LRU, freelru.SyncedLRU and freelru.ShardedLRU implement this interface.
 type MetricsProvider interface {
 	Metrics() freelru.Metrics
@@ -32,8 +32,7 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	}
 }
 
-// InstrumentCache registers OpenTelemetry Observable Gauge metrics for a cache
-// that implements the MetricsProvider interface.
+// InstrumentCache registers OpenTelemetry Observable Counter metrics of any instance of freelru cache.
 func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 	cfg := &config{
 		meterProvider: otel.GetMeterProvider(),
@@ -112,7 +111,6 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 	return nil
 }
 
-// registerMetric is a helper function to register an individual metric and handle errors.
 func registerMetric(meter metric.Meter, name, description string, callback metric.Int64Callback) error {
 	_, err := meter.Int64ObservableCounter(name,
 		metric.WithDescription(description),
