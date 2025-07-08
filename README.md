@@ -1,6 +1,7 @@
 # freelru-otel
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/sweet-tv/freelru-otel.svg)](https://pkg.go.dev/github.com/sweet-tv/freelru-otel)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sweet-tv/freelru-otel)](https://goreportcard.com/report/github.com/sweet-tv/freelru-otel)
 
 OpenTelemetry instrumentation for [elastic/go-freelru](https://github.com/elastic/go-freelru) LRU cache implementations.
 
