@@ -2,6 +2,7 @@ package freelruotel
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/elastic/go-freelru"
 	"go.opentelemetry.io/otel"
@@ -11,6 +12,12 @@ import (
 
 // version is the current version of the instrumentation library.
 var version = "v0.1.0-dev"
+
+// Global state for tracking multiple cache instances
+var (
+	registry          = &cacheRegistry{}
+	metricsRegistered atomic.Bool
+)
 
 // MetricsProvider is an interface for freelru cache implementations that can provide metrics.
 // freelru.LRU, freelru.SyncedLRU and freelru.ShardedLRU implement this interface.
@@ -43,21 +50,33 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 		opt(cfg)
 	}
 
+	// Add the cache to our global registry
+	registry.add(cache, name)
+
+	// Register metrics only once using atomic compare-and-swap
+	if !metricsRegistered.CompareAndSwap(false, true) {
+		return nil
+	}
+
 	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel",
 		metric.WithInstrumentationVersion(version))
 	if meter == nil {
 		return nil
 	}
 
-	commonAttrs := []attribute.KeyValue{
-		attribute.String("cache_name", name),
-	}
+	return registerAllMetrics(meter)
+}
 
-	// Register all cache metrics
+// registerAllMetrics registers all cache metrics with the provided meter
+func registerAllMetrics(meter metric.Meter) error {
+	// Register all cache metrics with callbacks that iterate over all caches
 	if err := registerMetric(meter, "cache.hit", "Number of cache hits",
 		func(ctx context.Context, o metric.Int64Observer) error {
-			metrics := cache.Metrics()
-			o.Observe(int64(metrics.Hits), metric.WithAttributes(commonAttrs...))
+			registry.forEach(func(ic instrumentedCache) {
+				metrics := ic.cache.Metrics()
+				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
+				o.Observe(int64(metrics.Hits), metric.WithAttributes(attrs...))
+			})
 			return nil
 		}); err != nil {
 		return err
@@ -65,8 +84,11 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 
 	if err := registerMetric(meter, "cache.miss", "Number of cache misses",
 		func(ctx context.Context, o metric.Int64Observer) error {
-			metrics := cache.Metrics()
-			o.Observe(int64(metrics.Misses), metric.WithAttributes(commonAttrs...))
+			registry.forEach(func(ic instrumentedCache) {
+				metrics := ic.cache.Metrics()
+				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
+				o.Observe(int64(metrics.Misses), metric.WithAttributes(attrs...))
+			})
 			return nil
 		}); err != nil {
 		return err
@@ -74,8 +96,11 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 
 	if err := registerMetric(meter, "cache.insert", "Number of cache inserts",
 		func(ctx context.Context, o metric.Int64Observer) error {
-			metrics := cache.Metrics()
-			o.Observe(int64(metrics.Inserts), metric.WithAttributes(commonAttrs...))
+			registry.forEach(func(ic instrumentedCache) {
+				metrics := ic.cache.Metrics()
+				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
+				o.Observe(int64(metrics.Inserts), metric.WithAttributes(attrs...))
+			})
 			return nil
 		}); err != nil {
 		return err
@@ -83,8 +108,11 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 
 	if err := registerMetric(meter, "cache.eviction", "Number of cache evictions",
 		func(ctx context.Context, o metric.Int64Observer) error {
-			metrics := cache.Metrics()
-			o.Observe(int64(metrics.Evictions), metric.WithAttributes(commonAttrs...))
+			registry.forEach(func(ic instrumentedCache) {
+				metrics := ic.cache.Metrics()
+				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
+				o.Observe(int64(metrics.Evictions), metric.WithAttributes(attrs...))
+			})
 			return nil
 		}); err != nil {
 		return err
@@ -92,8 +120,11 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 
 	if err := registerMetric(meter, "cache.collision", "Number of cache collisions",
 		func(ctx context.Context, o metric.Int64Observer) error {
-			metrics := cache.Metrics()
-			o.Observe(int64(metrics.Collisions), metric.WithAttributes(commonAttrs...))
+			registry.forEach(func(ic instrumentedCache) {
+				metrics := ic.cache.Metrics()
+				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
+				o.Observe(int64(metrics.Collisions), metric.WithAttributes(attrs...))
+			})
 			return nil
 		}); err != nil {
 		return err
@@ -101,8 +132,11 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 
 	if err := registerMetric(meter, "cache.removal", "Number of cache removals",
 		func(ctx context.Context, o metric.Int64Observer) error {
-			metrics := cache.Metrics()
-			o.Observe(int64(metrics.Removals), metric.WithAttributes(commonAttrs...))
+			registry.forEach(func(ic instrumentedCache) {
+				metrics := ic.cache.Metrics()
+				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
+				o.Observe(int64(metrics.Removals), metric.WithAttributes(attrs...))
+			})
 			return nil
 		}); err != nil {
 		return err
