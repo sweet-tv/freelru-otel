@@ -340,3 +340,34 @@ func TestInstrumentCachesConcurrent(t *testing.T) {
 		}
 	}
 }
+
+func TestInstrumentCacheDuplicateName(t *testing.T) {
+	// Reset global state for test isolation
+	registry.reset()
+	metricsRegistered.Store(false)
+
+	// Create manual reader to collect metrics
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+
+	// Create two different caches
+	cache1 := mustCreateLRUCache()
+	cache2 := mustCreateSyncedCache()
+
+	// First cache should succeed
+	err := InstrumentCache(cache1, "duplicate_name", WithMeterProvider(provider))
+	if err != nil {
+		t.Fatalf("First cache should not fail: %v", err)
+	}
+
+	// Second cache with same name should fail
+	err = InstrumentCache(cache2, "duplicate_name", WithMeterProvider(provider))
+	if err == nil {
+		t.Fatal("Expected error when adding cache with duplicate name")
+	}
+
+	expectedError := "cache with name 'duplicate_name' already exists"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error message '%s', got '%s'", expectedError, err.Error())
+	}
+}

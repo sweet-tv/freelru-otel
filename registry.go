@@ -1,41 +1,45 @@
 package freelruotel
 
-import "sync"
-
-// instrumentedCache holds a cache instance with its name
-type instrumentedCache struct {
-	cache MetricsProvider
-	name  string
-}
+import (
+	"fmt"
+	"sync"
+)
 
 // cacheRegistry manages a collection of instrumented caches with thread-safe access
 type cacheRegistry struct {
 	sync.RWMutex
-	caches []instrumentedCache
+	caches map[string]MetricsProvider
 }
 
-// add appends a new cache to the registry
-func (r *cacheRegistry) add(cache MetricsProvider, name string) {
+// add stores a new cache in the registry, returning error if name already exists
+func (r *cacheRegistry) add(cache MetricsProvider, name string) error {
 	r.Lock()
-	r.caches = append(r.caches, instrumentedCache{
-		cache: cache,
-		name:  name,
-	})
-	r.Unlock()
+	defer r.Unlock()
+	
+	if r.caches == nil {
+		r.caches = make(map[string]MetricsProvider)
+	}
+	
+	if _, exists := r.caches[name]; exists {
+		return fmt.Errorf("cache with name '%s' already exists", name)
+	}
+	
+	r.caches[name] = cache
+	return nil
 }
 
-// forEach iterates over all caches with read lock
-func (r *cacheRegistry) forEach(fn func(instrumentedCache)) {
+// forEach iterates over all caches
+func (r *cacheRegistry) forEach(fn func(string, MetricsProvider)) {
 	r.RLock()
 	defer r.RUnlock()
-	for _, ic := range r.caches {
-		fn(ic)
+	for name, cache := range r.caches {
+		fn(name, cache)
 	}
 }
 
 // reset clears all caches (used in tests)
 func (r *cacheRegistry) reset() {
 	r.Lock()
-	r.caches = nil
-	r.Unlock()
+	defer r.Unlock()
+	r.caches = make(map[string]MetricsProvider)
 }
