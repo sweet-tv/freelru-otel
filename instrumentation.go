@@ -2,7 +2,7 @@ package freelruotel
 
 import (
 	"context"
-	"sync/atomic"
+	"sync"
 
 	"github.com/elastic/go-freelru"
 	"go.opentelemetry.io/otel"
@@ -15,8 +15,8 @@ var version = "v0.1.0-dev"
 
 // Global state for tracking multiple cache instances
 var (
-	registry          = &cacheRegistry{}
-	metricsRegistered atomic.Bool
+	registry    = &cacheRegistry{}
+	metricsOnce sync.Once
 )
 
 // MetricsProvider is an interface for freelru cache implementations that can provide metrics.
@@ -51,103 +51,80 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 	}
 
 	// Add the cache to our global registry
-	registry.add(cache, name)
-
-	// Register metrics only once using atomic compare-and-swap
-	if !metricsRegistered.CompareAndSwap(false, true) {
-		return nil
+	if err := registry.add(cache, name); err != nil {
+		return err
 	}
 
-	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel",
-		metric.WithInstrumentationVersion(version))
-	if meter == nil {
-		return nil
-	}
+	// Register metrics only once using sync.Once
+	var err error
+	metricsOnce.Do(func() {
+		meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel",
+			metric.WithInstrumentationVersion(version))
+		if meter != nil {
+			err = registerAllMetrics(meter)
+		}
+	})
 
-	return registerAllMetrics(meter)
+	return err
 }
 
 // registerAllMetrics registers all cache metrics with the provided meter
 func registerAllMetrics(meter metric.Meter) error {
-	// Register all cache metrics with callbacks that iterate over all caches
-	if err := registerMetric(meter, "cache.hit", "Number of cache hits",
-		func(ctx context.Context, o metric.Int64Observer) error {
-			registry.forEach(func(ic instrumentedCache) {
-				metrics := ic.cache.Metrics()
-				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
-				o.Observe(int64(metrics.Hits), metric.WithAttributes(attrs...))
-			})
-			return nil
-		}); err != nil {
+	// Create observers for all metrics
+	hitObserver, err := meter.Int64ObservableCounter("cache.hit",
+		metric.WithDescription("Number of cache hits"))
+	if err != nil {
 		return err
 	}
 
-	if err := registerMetric(meter, "cache.miss", "Number of cache misses",
-		func(ctx context.Context, o metric.Int64Observer) error {
-			registry.forEach(func(ic instrumentedCache) {
-				metrics := ic.cache.Metrics()
-				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
-				o.Observe(int64(metrics.Misses), metric.WithAttributes(attrs...))
-			})
-			return nil
-		}); err != nil {
+	missObserver, err := meter.Int64ObservableCounter("cache.miss",
+		metric.WithDescription("Number of cache misses"))
+	if err != nil {
 		return err
 	}
 
-	if err := registerMetric(meter, "cache.insert", "Number of cache inserts",
-		func(ctx context.Context, o metric.Int64Observer) error {
-			registry.forEach(func(ic instrumentedCache) {
-				metrics := ic.cache.Metrics()
-				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
-				o.Observe(int64(metrics.Inserts), metric.WithAttributes(attrs...))
-			})
-			return nil
-		}); err != nil {
+	insertObserver, err := meter.Int64ObservableCounter("cache.insert",
+		metric.WithDescription("Number of cache inserts"))
+	if err != nil {
 		return err
 	}
 
-	if err := registerMetric(meter, "cache.eviction", "Number of cache evictions",
-		func(ctx context.Context, o metric.Int64Observer) error {
-			registry.forEach(func(ic instrumentedCache) {
-				metrics := ic.cache.Metrics()
-				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
-				o.Observe(int64(metrics.Evictions), metric.WithAttributes(attrs...))
-			})
-			return nil
-		}); err != nil {
+	evictionObserver, err := meter.Int64ObservableCounter("cache.eviction",
+		metric.WithDescription("Number of cache evictions"))
+	if err != nil {
 		return err
 	}
 
-	if err := registerMetric(meter, "cache.collision", "Number of cache collisions",
-		func(ctx context.Context, o metric.Int64Observer) error {
-			registry.forEach(func(ic instrumentedCache) {
-				metrics := ic.cache.Metrics()
-				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
-				o.Observe(int64(metrics.Collisions), metric.WithAttributes(attrs...))
-			})
-			return nil
-		}); err != nil {
+	collisionObserver, err := meter.Int64ObservableCounter("cache.collision",
+		metric.WithDescription("Number of cache collisions"))
+	if err != nil {
 		return err
 	}
 
-	if err := registerMetric(meter, "cache.removal", "Number of cache removals",
-		func(ctx context.Context, o metric.Int64Observer) error {
-			registry.forEach(func(ic instrumentedCache) {
-				metrics := ic.cache.Metrics()
-				attrs := []attribute.KeyValue{attribute.String("cache_name", ic.name)}
-				o.Observe(int64(metrics.Removals), metric.WithAttributes(attrs...))
-			})
-			return nil
-		}); err != nil {
+	removalObserver, err := meter.Int64ObservableCounter("cache.removal",
+		metric.WithDescription("Number of cache removals"))
+	if err != nil {
 		return err
 	}
 
-	return nil
-}
+	// Register single callback that observes all metrics at once
+	_, err = meter.RegisterCallback(
+		func(ctx context.Context, o metric.Observer) error {
+			registry.forEach(func(name string, cache MetricsProvider) {
+				metrics := cache.Metrics()
+				attrs := metric.WithAttributes(attribute.String("cache_name", name))
 
-func registerMetric(meter metric.Meter, name, description string, callback metric.Int64Callback) error {
-	_, err := meter.Int64ObservableCounter(name,
-		metric.WithDescription(description),
-		metric.WithInt64Callback(callback))
+				o.ObserveInt64(hitObserver, int64(metrics.Hits), attrs)
+				o.ObserveInt64(missObserver, int64(metrics.Misses), attrs)
+				o.ObserveInt64(insertObserver, int64(metrics.Inserts), attrs)
+				o.ObserveInt64(evictionObserver, int64(metrics.Evictions), attrs)
+				o.ObserveInt64(collisionObserver, int64(metrics.Collisions), attrs)
+				o.ObserveInt64(removalObserver, int64(metrics.Removals), attrs)
+			})
+			return nil
+		},
+		hitObserver, missObserver, insertObserver, evictionObserver, collisionObserver, removalObserver,
+	)
+
 	return err
 }
