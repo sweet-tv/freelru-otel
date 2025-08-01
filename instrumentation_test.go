@@ -38,8 +38,7 @@ func TestInstrumentCache(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Reset global state for test isolation
-			registry.reset()
-			metricsRegistered.Store(false)
+			resetForTesting()
 
 			// Create manual reader to collect metrics
 			reader := metric.NewManualReader()
@@ -134,8 +133,7 @@ func mustCreateSyncedCache() *freelru.SyncedLRU[string, string] {
 
 func TestInstrumentMultipleCaches(t *testing.T) {
 	// Reset global state for test isolation
-	registry.reset()
-	metricsRegistered.Store(false)
+	resetForTesting()
 
 	// Create manual reader to collect metrics
 	reader := metric.NewManualReader()
@@ -243,8 +241,7 @@ func TestInstrumentMultipleCaches(t *testing.T) {
 
 func TestInstrumentCachesConcurrent(t *testing.T) {
 	// Reset global state for test isolation
-	registry.reset()
-	metricsRegistered.Store(false)
+	resetForTesting()
 
 	// Create manual reader to collect metrics
 	reader := metric.NewManualReader()
@@ -343,8 +340,7 @@ func TestInstrumentCachesConcurrent(t *testing.T) {
 
 func TestInstrumentCacheDuplicateName(t *testing.T) {
 	// Reset global state for test isolation
-	registry.reset()
-	metricsRegistered.Store(false)
+	resetForTesting()
 
 	// Create manual reader to collect metrics
 	reader := metric.NewManualReader()

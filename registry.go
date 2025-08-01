@@ -43,3 +43,9 @@ func (r *cacheRegistry) reset() {
 	defer r.Unlock()
 	r.caches = make(map[string]MetricsProvider)
 }
+
+// resetForTesting resets both registry and metrics registration for tests
+func resetForTesting() {
+	registry.reset()
+	metricsOnce = sync.Once{}
+}

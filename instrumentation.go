@@ -2,7 +2,7 @@ package freelruotel
 
 import (
 	"context"
-	"sync/atomic"
+	"sync"
 
 	"github.com/elastic/go-freelru"
 	"go.opentelemetry.io/otel"
@@ -15,8 +15,8 @@ var version = "v0.1.0-dev"
 
 // Global state for tracking multiple cache instances
 var (
-	registry          = &cacheRegistry{}
-	metricsRegistered atomic.Bool
+	registry    = &cacheRegistry{}
+	metricsOnce sync.Once
 )
 
 // MetricsProvider is an interface for freelru cache implementations that can provide metrics.
@@ -55,18 +55,17 @@ func InstrumentCache(cache MetricsProvider, name string, opts ...Option) error {
 		return err
 	}
 
-	// Register metrics only once using atomic compare-and-swap
-	if !metricsRegistered.CompareAndSwap(false, true) {
-		return nil
-	}
+	// Register metrics only once using sync.Once
+	var err error
+	metricsOnce.Do(func() {
+		meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel",
+			metric.WithInstrumentationVersion(version))
+		if meter != nil {
+			err = registerAllMetrics(meter)
+		}
+	})
 
-	meter := cfg.meterProvider.Meter("github.com/sweet-tv/freelru-otel",
-		metric.WithInstrumentationVersion(version))
-	if meter == nil {
-		return nil
-	}
-
-	return registerAllMetrics(meter)
+	return err
 }
 
 // registerAllMetrics registers all cache metrics with the provided meter
@@ -114,7 +113,7 @@ func registerAllMetrics(meter metric.Meter) error {
 			registry.forEach(func(name string, cache MetricsProvider) {
 				metrics := cache.Metrics()
 				attrs := metric.WithAttributes(attribute.String("cache_name", name))
-				
+
 				o.ObserveInt64(hitObserver, int64(metrics.Hits), attrs)
 				o.ObserveInt64(missObserver, int64(metrics.Misses), attrs)
 				o.ObserveInt64(insertObserver, int64(metrics.Inserts), attrs)
@@ -129,4 +128,3 @@ func registerAllMetrics(meter metric.Meter) error {
 
 	return err
 }
-
