@@ -11,7 +11,7 @@ import (
 )
 
 // version is the current version of the instrumentation library.
-var version = "v0.1.0-dev"
+var version = "v0.2.0"
 
 // Global state for tracking multiple cache instances
 var (
